@@ -118,6 +118,82 @@ class Asteroid {
   }
 }
 
+class ShootingStar {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.size = 1;
+    this.radius = 12;
+    this.dead = false;
+    this.ttl = 5;
+
+    const angle = rand(0, Math.PI * 2);
+    const speed = SPEEDS[3] * 2 + rand(-15, 15);
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed;
+    this.rotSpeed = rand(-1.2, 1.2);
+    this.rot = rand(0, Math.PI * 2);
+
+    const n = randInt(6, 9);
+    this.verts = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const r = this.radius * rand(0.6, 1.0);
+      this.verts.push([Math.cos(a) * r, Math.sin(a) * r]);
+    }
+  }
+
+  update(dt) {
+    this.x = wrap(this.x + this.vx * dt, W);
+    this.y = wrap(this.y + this.vy * dt, H);
+    this.rot += this.rotSpeed * dt;
+    this.ttl -= dt;
+    if (this.ttl <= 0) {
+      this.dead = true;
+      explode(this.x, this.y, 6);
+    }
+  }
+
+  split() {
+    return [];
+  }
+
+  draw() {
+    const speed = Math.hypot(this.vx, this.vy);
+    if (speed > 1) {
+      const segs = 5;
+      const segLen = 4;
+      const nx = -this.vx / speed;
+      const ny = -this.vy / speed;
+      for (let i = 0; i < segs; i++) {
+        const t = i / segs;
+        const alpha = 0.5 * (1 - t);
+        ctx.strokeStyle = `rgba(255, 180, 50, ${alpha.toFixed(2)})`;
+        ctx.lineWidth = 2.5 * (1 - t) + 0.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(this.x + nx * segLen * i, this.y + ny * segLen * i);
+        ctx.lineTo(this.x + nx * segLen * (i + 1), this.y + ny * segLen * (i + 1));
+        ctx.stroke();
+      }
+    }
+
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.rot);
+    ctx.strokeStyle = '#ffb432';
+    ctx.lineWidth = 1.5;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(this.verts[0][0], this.verts[0][1]);
+    for (let i = 1; i < this.verts.length; i++)
+      ctx.lineTo(this.verts[i][0], this.verts[i][1]);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
 // ── Ship ──────────────────────────────────────────────────────────────────────
 class Ship {
   constructor() {
@@ -304,7 +380,11 @@ function spawnAsteroids(count) {
       x = rand(0, W);
       y = rand(0, H);
     } while (Math.hypot(x - W / 2, y - H / 2) < SAFE_DIST);
-    asteroids.push(new Asteroid(x, y, 3));
+    if (Math.random() < 0.2) {
+      asteroids.push(new ShootingStar(x, y));
+    } else {
+      asteroids.push(new Asteroid(x, y, 3));
+    }
   }
 }
 
@@ -384,7 +464,7 @@ function update(dt) {
       if (!a.dead && !b.dead && dist(b, a) < a.radius) {
         b.dead = true;
         a.dead = true;
-        score += POINTS[a.size];
+        score += a instanceof ShootingStar ? 300 : POINTS[a.size];
         explode(a.x, a.y, a.size * 5);
         newAsteroids.push(...a.split());
         if (Math.random() < 0.08) powerups.push(new PowerUp(a.x, a.y));
